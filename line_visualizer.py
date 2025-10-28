@@ -10,6 +10,7 @@ TARGET_FPS = 60
 BG_COLOR = (8, 10, 12)
 FULLSCREEN = False
 WINDOW_SIZE = None  # None -> desktop; or (1920,1080)
+MONITOR_INDEX = 0  # 0 = primary, 1 = secondary, etc.
 INSET_FRACTION = 0.88  # fit logo within this fraction of screen (padding)
 
 # Lissajous-on-outline (adjustable at runtime)
@@ -227,24 +228,91 @@ class LineVisualizer:
 # ============================
 # Pygame bootstrap
 # ============================
-def open_window():
+def list_monitors():
+    """Show available monitors/displays"""
     pygame.init()
-    flags = pygame.FULLSCREEN if FULLSCREEN else 0
-    if FULLSCREEN or WINDOW_SIZE is None:
-        screen = pygame.display.set_mode((0, 0), flags)
-    else:
-        screen = pygame.display.set_mode(WINDOW_SIZE, flags)
-    pygame.display.set_caption("Line Visualizer — SVG Path Lissajous")
-    return screen
+
+    print(f"\n=== Display Information ===")
+
+    # Try to get all displays (pygame 2.0+)
+    try:
+        displays = pygame.display.get_desktop_sizes()
+        print(f"Total monitors detected: {len(displays)}")
+        for i, (w, h) in enumerate(displays):
+            print(f"  Monitor {i}: {w}x{h}")
+    except AttributeError:
+        info = pygame.display.Info()
+        print(f"Monitor detection not available (old pygame version)")
+        print(f"Primary monitor: {info.current_w}x{info.current_h}")
+
+    print(f"\nCurrent Settings:")
+    print(f"  MONITOR_INDEX: {MONITOR_INDEX}")
+    print(f"  WINDOW_SIZE: {WINDOW_SIZE}")
+    print(f"  FULLSCREEN: {FULLSCREEN}\n")
+
+    pygame.quit()
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python line_visualizer_svgpaths.py path/to/image.svg")
+        print("Usage: python line_visualizer.py path/to/image.svg")
+        print("       python line_visualizer.py --monitors  (show monitor info)")
         sys.exit(1)
+
+    # Show monitor info if requested
+    if sys.argv[1] == "--monitors":
+        list_monitors()
+        sys.exit(0)
+
     svg_path = sys.argv[1]
 
-    screen = open_window()
+    pygame.init()
+
+    # Monitor Selection (for multi-monitor setups)
+    displays = []
+    try:
+        # Get all display sizes (pygame 2.0+)
+        displays = pygame.display.get_desktop_sizes()
+        print(f"Detected {len(displays)} monitor(s): {displays}")
+    except AttributeError:
+        # Fallback for older pygame versions
+        info = pygame.display.Info()
+        displays = [(info.current_w, info.current_h)]
+        print(f"Single monitor detected: {displays[0]}")
+
+    # Calculate position for target monitor
+    if MONITOR_INDEX >= len(displays):
+        print(
+            f"Warning: MONITOR_INDEX={MONITOR_INDEX} exceeds available monitors ({len(displays)}). Using monitor 0."
+        )
+        monitor_idx = 0
+    else:
+        monitor_idx = MONITOR_INDEX
+
+    # Calculate X offset by summing widths of previous monitors
+    x_offset = sum(displays[i][0] for i in range(monitor_idx))
+
+    # Set window position before creating the window
+    if monitor_idx > 0:
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{x_offset},0"
+        print(f"Positioning window on monitor {monitor_idx} at x={x_offset}")
+
+    # Window flags
+    flags = pygame.FULLSCREEN if FULLSCREEN else 0
+
+    # Window size
+    if WINDOW_SIZE is None:
+        # Auto-detect: use target monitor's size
+        if FULLSCREEN:
+            screen = pygame.display.set_mode((0, 0), flags)
+        else:
+            # Use the target monitor's dimensions
+            target_size = displays[monitor_idx]
+            screen = pygame.display.set_mode(target_size, flags)
+    else:
+        screen = pygame.display.set_mode(WINDOW_SIZE, flags)
+
+    pygame.display.set_caption("Line Visualizer — SVG Path Lissajous")
     clock = pygame.time.Clock()
     W, H = screen.get_size()
 
