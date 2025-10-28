@@ -15,8 +15,9 @@ INSET_FRACTION = 0.88  # fit logo within this fraction of screen (padding)
 
 # Lissajous-on-outline (adjustable at runtime)
 POINTS_ON_PATH = 5000  # total samples across all contours (lower on slow PCs)
-GLOW_POINTS = 16  # number of moving “heads”
+GLOW_POINTS = 16  # number of moving "heads"
 GLOW_WIDTH = 10  # +/- pixels along index around each head
+GLOW_INTENSITY = 4  # brightness multiplier for glow points (1.0-4.0)
 DECAY = 0.90  # trail persistence
 A_FREQ = 3  # Lissajous A
 B_FREQ = 4  # Lissajous B
@@ -218,6 +219,9 @@ class LineVisualizer:
         V = np.full_like(hue, 1.0)
         col = hsv_to_rgb(hue, S, V)[..., 0, :]  # (n,3)
 
+        # Apply intensity multiplier for brighter glow
+        col = col * GLOW_INTENSITY
+
         self.buf[Y, X, :] = np.maximum(self.buf[Y, X, :], col)
 
         out = np.clip(self.buf * 255.0, 0, 255).astype(np.uint8)
@@ -318,7 +322,7 @@ def main():
 
     viz = LineVisualizer(svg_path, W, H)
 
-    global GLOW_WIDTH, GLOW_POINTS, A_FREQ, B_FREQ
+    global GLOW_WIDTH, GLOW_POINTS, A_FREQ, B_FREQ, GLOW_INTENSITY
     t0 = time.time()
     running = True
     while running:
@@ -349,6 +353,12 @@ def main():
                     B_FREQ = max(1, B_FREQ - 1)
                 elif e.key == pygame.K_QUOTE:  # '\''
                     B_FREQ = min(16, B_FREQ + 1)
+                elif e.key == pygame.K_i:
+                    GLOW_INTENSITY = min(5.0, GLOW_INTENSITY + 0.2)
+                    print(f"Glow Intensity: {GLOW_INTENSITY:.1f}")
+                elif e.key == pygame.K_o:
+                    GLOW_INTENSITY = max(0.5, GLOW_INTENSITY - 0.2)
+                    print(f"Glow Intensity: {GLOW_INTENSITY:.1f}")
                 elif e.key == pygame.K_s:
                     pygame.image.save(screen, f"screenshot_{int(now)}.png")
                 elif e.key == pygame.K_r:
