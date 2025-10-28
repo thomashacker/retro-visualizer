@@ -1,0 +1,4 @@
+pygame
+numpy
+pillow
+cairosvg
