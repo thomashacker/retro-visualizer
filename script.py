@@ -21,8 +21,8 @@ BG_COLOR = (8, 10, 12)  # „Gehäuse-Schwarz"
 FIT_MODE = "contain"  # "contain" oder "cover"
 # Window Settings
 WINDOW_SIZE = None  # None = auto-detect, or tuple like (1920, 1080)
-FULLSCREEN = False  # True = start in fullscreen mode
-MONITOR_INDEX = 0  # 0 = primary, 1 = secondary, etc.
+FULLSCREEN = True  # True = start in fullscreen mode
+MONITOR_INDEX = 1  # 0 = primary, 1 = secondary, etc.
 # -----------------------------------------------------
 
 SUPPORTED_EXT = {".svg", ".png", ".jpg", ".jpeg", ".gif"}
@@ -263,13 +263,25 @@ def apply_effects(rgba_img, t, out_size):
 def list_monitors():
     """Show available monitors/displays"""
     pygame.init()
-    info = pygame.display.Info()
+
     print(f"\n=== Display Information ===")
-    print(f"Primary monitor: {info.current_w}x{info.current_h}")
-    print(f"Monitor count: Use MONITOR_INDEX = 0 (primary), 1 (secondary), etc.")
-    print(f"Current MONITOR_INDEX setting: {MONITOR_INDEX}")
-    print(f"Current WINDOW_SIZE setting: {WINDOW_SIZE}")
-    print(f"Current FULLSCREEN setting: {FULLSCREEN}\n")
+
+    # Try to get all displays (pygame 2.0+)
+    try:
+        displays = pygame.display.get_desktop_sizes()
+        print(f"Total monitors detected: {len(displays)}")
+        for i, (w, h) in enumerate(displays):
+            print(f"  Monitor {i}: {w}x{h}")
+    except AttributeError:
+        info = pygame.display.Info()
+        print(f"Monitor detection not available (old pygame version)")
+        print(f"Primary monitor: {info.current_w}x{info.current_h}")
+
+    print(f"\nCurrent Settings:")
+    print(f"  MONITOR_INDEX: {MONITOR_INDEX}")
+    print(f"  WINDOW_SIZE: {WINDOW_SIZE}")
+    print(f"  FULLSCREEN: {FULLSCREEN}\n")
+
     pygame.quit()
 
 
@@ -292,16 +304,46 @@ def main():
     pygame.init()
 
     # Monitor Selection (for multi-monitor setups)
-    if MONITOR_INDEX > 0:
-        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{MONITOR_INDEX},0"
+    displays = []
+    try:
+        # Get all display sizes (pygame 2.0+)
+        displays = pygame.display.get_desktop_sizes()
+        print(f"Detected {len(displays)} monitor(s): {displays}")
+    except AttributeError:
+        # Fallback for older pygame versions
+        info = pygame.display.Info()
+        displays = [(info.current_w, info.current_h)]
+        print(f"Single monitor detected: {displays[0]}")
+
+    # Calculate position for target monitor
+    if MONITOR_INDEX >= len(displays):
+        print(
+            f"Warning: MONITOR_INDEX={MONITOR_INDEX} exceeds available monitors ({len(displays)}). Using monitor 0."
+        )
+        monitor_idx = 0
+    else:
+        monitor_idx = MONITOR_INDEX
+
+    # Calculate X offset by summing widths of previous monitors
+    x_offset = sum(displays[i][0] for i in range(monitor_idx))
+
+    # Set window position before creating the window
+    if monitor_idx > 0:
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{x_offset},0"
+        print(f"Positioning window on monitor {monitor_idx} at x={x_offset}")
 
     # Window flags
     flags = pygame.FULLSCREEN if FULLSCREEN else 0
 
     # Window size
     if WINDOW_SIZE is None:
-        # Auto-detect: use current display size
-        screen = pygame.display.set_mode((0, 0), flags)
+        # Auto-detect: use target monitor's size
+        if FULLSCREEN:
+            screen = pygame.display.set_mode((0, 0), flags)
+        else:
+            # Use the target monitor's dimensions
+            target_size = displays[monitor_idx]
+            screen = pygame.display.set_mode(target_size, flags)
     else:
         screen = pygame.display.set_mode(WINDOW_SIZE, flags)
 
